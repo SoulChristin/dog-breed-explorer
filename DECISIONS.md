@@ -28,8 +28,67 @@ more time.
     With more time: Nothing I would change at this scale. 
 
 2. Database & Data Warehouse
+
+    Which tool and why: 
+        I chose DuckDB over a client-server database (Postgres/MySQL) or a cloud warehouse (BigQuery/Snowflake/Databricks) because that's infrastructure to run and maintain for no benefit at this scale. DuckDB also reads JSON natively (read_json) and lets me query it directly with SQL, so the raw files can be queried as-is.
+        
+    What arhitecture I build here shortly:
+    Three layers in one DuckDB file (warehouse/dog_explorer_dev.duckdb):
+    1) Landing — one row per JSON record, every source field kept as-is (typed VARCHAR/STRUCT to avoid breaking on schema drift in the source), plus a source_file column for traceability. Rebuilt from scratch every run by re-reading every committed run_date= partition — not appended to, because git is already the durable, versioned copy of each day's raw payload. The landing table is a disposable projection of what git holds, not a second store of history that could drift from it or be lost if the warehouse file is deleted. Tht way I can see the data and proceed to the next layer after evaluating the data.
+    2) Staging — parses and cleans the landing columns into real types (dates, unpacked structs, etc.); still one row per breed, no business logic yet.
+    3) Marts — the final tables shaped around the dashboard's actual questions, populating it directly.
+
+    Traded off: Rebuilding landing from every historical raw file, rather than appending incrementally, means every build re-reads and re-parses all of it, not just the new day — fine at 628 rows, but the cost grows linearly with how long the pipeline has been running, and there's no incremental loading.
+
+    With more time:
+    Move landing to an incremental model — only parse and load new run_date partitions, keyed so a rerun of the same day doesn't duplicate — once the full-rebuild cost stops being negligible. I'd also add dbt tests (not_null/unique on id, accepted_values on categorical fields) at each layer boundary.
+
+
 3. Transformation & Modelling
+    Which tool and why: 
+    I use dbt Core to move data through landing → staging → marts. It's the right fit for the case's requirements — schema/custom tests, generated docs, dev/prod targets — all built in, not something to hand-roll. The dataset is also small (628 rows, one file), which rules out heavier tools like Spark or Airflow-orchestrated transforms meant for distributed compute and multi-source orchestration this project doesn't need.
+
+    What it does shortly:  
+
+    Trade-off: 
+    There isn't really a trade-off on the tool choice itself.
+
+    With more time: 
+
+
 4. Version Control
+    Which tool and why: 
+        
+    What it does shortly:  
+
+    Traded off: 
+
+    With more time: 
+
 5. CI/CD
+    Which tool and why: 
+        
+    What it does shortly:  
+
+    Traded off: 
+
+    With more time: 
+
 6. Orchestration & Schedulling
+
+    Which tool and why: 
+        
+    What it does shortly:  
+
+    Traded off: 
+
+    With more time: 
+
 7. Dashboard & Visualization
+    Which tool and why: 
+        
+    What it does shortly:  
+
+    Traded off: 
+
+    With more time: 
