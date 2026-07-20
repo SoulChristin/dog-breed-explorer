@@ -107,13 +107,13 @@ There isn't really a trade-off on the tool choice itself.
 ## 6. Orchestration & Scheduling
 
 **Which tool and why**
-
+I used GitHub workflows (`.github/workflows/daily-refresh.yml`) because the repo already lives on GitHub, so there's no extra system to stand up — a dedicated orchestrator (Airflow, Dagster, Prefect) would be solving for multi-step DAGs and retries across many jobs, which this single daily fetch doesn't have.
+GitHub Actions handles when things run (the daily schedule, retries, secrets), while dbt handles what order the SQL models run in and whether they're correct (tests, docs). Splitting them keeps each tool doing only the job it's good at, instead of one heavy tool trying to do both.
 
 **What it does shortly**
-
+The Github workflow: The Runs on a cron schedule (02:00 UTC daily), plus `workflow_dispatch` so a failed night can be re-run manually without waiting a day. A `concurrency` group prevents two runs from writing the same day's partition at once. It checks out the repo, installs dependencies, runs `src/ingest_breeds.py` with `DOG_API_KEY` from GitHub Secrets, and commits the raw payload back to `main` under a bot identity — only committing when the data actually changed (an identical payload is a successful no-op, not a failure).
 
 **Traded off**
-
 
 **With more time**
 
