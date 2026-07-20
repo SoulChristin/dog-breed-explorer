@@ -1,0 +1,7 @@
+dog_explorer:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: '../warehouse/dog_explorer_dev.duckdb'
+      schema: landing

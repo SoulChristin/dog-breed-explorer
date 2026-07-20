@@ -2,3 +2,11 @@
 __pycache__/
 *.py[cod]
 
+# --- dbt ---------------------------------------------------------------
+dog_explorer_dbt/target/
+dog_explorer_dbt/logs/
+dog_explorer_dbt/dbt_packages/
+dog_explorer_dbt/.user.yml
+
+# --- DuckDB warehouse -------
+warehouse/*.duckdb

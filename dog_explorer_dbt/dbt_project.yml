@@ -1,0 +1,19 @@
+name: 'dog_explorer'
+version: '1.0.0'
+config-version: 2
+
+profile: 'dog_explorer'
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  dog_explorer:
+    landing:
+      +materialized: table
+      +schema: landing
