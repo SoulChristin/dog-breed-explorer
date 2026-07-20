@@ -1,0 +1,51 @@
+name: Daily refresh
+
+# Fetches the breed catalogue and commits the raw payload back to the repo.
+# This is the only workflow that calls TheDogAPI, and the only one that needs
+# DOG_API_KEY.
+
+on:
+  schedule:
+    # 02:00 UTC daily.
+    - cron: '0 2 * * *'
+    # Manual trigger, so a failed night can be re-run without waiting a day.
+  workflow_dispatch:
+
+# Prevent two runs writing the same day's partition at once.
+concurrency:
+  group: daily-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    permissions:
+    # Required to push the raw JSON commit back to main.
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch from TheDogAPI
+        env:
+          DOG_API_KEY: ${{ secrets.DOG_API_KEY }}
+        run: python src/ingest_breeds.py
+
+      - name: Commit the day's raw payload
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/raw
+          # Nothing to commit when the API returned an identical payload.
+          # That is a successful no-op, not a failure.
+          git diff --staged --quiet || git commit -m "Daily refresh: $(date -u +%Y-%m-%d)"
+          git push
