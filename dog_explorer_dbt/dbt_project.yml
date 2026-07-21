@@ -17,3 +17,6 @@ models:
     landing:
       +materialized: table
       +schema: landing
+    staging:
+      +materialized: table
+      +schema: staging

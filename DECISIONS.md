@@ -40,19 +40,15 @@ Nothing I would change at this scale.
 
 **Which tool and why**
 I chose DuckDB over a client-server database (Postgres/MySQL) or a cloud warehouse (BigQuery/Snowflake/Databricks) because that's infrastructure to run and maintain for no benefit at this scale. DuckDB also reads JSON natively (`read_json`) and lets me query it directly with SQL, so the raw files can be queried as-is.
+**Traded off** 
+No trade off on the tool I can think.
 
-**What architecture I build here shortly**
-Three layers in one DuckDB file (`warehouse/dog_explorer_dev.duckdb`):
 
-1. **Landing** — one row per JSON record, every source field kept as-is (typed VARCHAR/STRUCT to avoid breaking on schema drift in the source), plus a `source_file` column for traceability. Rebuilt from scratch every run by re-reading every committed `run_date=` partition — not appended to, because git is already the durable, versioned copy of each day's raw payload. The landing table is a disposable projection of what git holds, not a second store of history that could drift from it or be lost if the warehouse file is deleted. Tht way I can see the data and proceed to the next layer after evaluating the data.
-2. **Staging** — parses and cleans the landing columns into real types (dates, unpacked structs, etc.); still one row per breed, no business logic yet.
-3. **Marts** — the final tables shaped around the dashboard's actual questions, populating it directly.
 
-**Traded off**
-Rebuilding landing from every historical raw file, rather than appending incrementally, means every build re-reads and re-parses all of it, not just the new day — fine at 628 rows, but the cost grows linearly with how long the pipeline has been running, and there's no incremental loading.
 
-**With more time**
-Move landing to an incremental model — only parse and load new `run_date` partitions, keyed so a rerun of the same day doesn't duplicate — once the full-rebuild cost stops being negligible. I'd also add dbt tests (`not_null`/`unique` on `id`, `accepted_values` on categorical fields) at each layer boundary.
+
+
+
 
 ---
 
@@ -61,13 +57,25 @@ Move landing to an incremental model — only parse and load new `run_date` part
 **Which tool and why**
 I use dbt Core to move data through landing → staging → marts. It's the right fit for the case's requirements — schema/custom tests, generated docs, dev/prod targets — all built in, not something to hand-roll. The dataset is also small (628 rows, one file), which rules out heavier tools like Spark or Airflow-orchestrated transforms meant for distributed compute and multi-source orchestration this project doesn't need.
 
-**What it does shortly**
 
+**What architecture I build here shortly**
 
-**Trade-off**
-There isn't really a trade-off on the tool choice itself.
+1. **Landing** — one row per JSON record, every source field kept as-is (typed VARCHAR/STRUCT to avoid breaking on schema drift in the source), plus a `source_file` column for traceability. Rebuilt from scratch every run by re-reading every committed `run_date=` partition — not appended to, because git is already the durable, versioned copy of each day's raw payload. The landing table is a disposable projection of what git holds, not a second store of history that could drift from it or be lost if the warehouse file is deleted. That way I can see the data and proceed to the next layer after evaluating the data.
+
+2. **Staging** — parses and cleans the landing columns into real types (dates, unpacked structs, etc.); also drop unesseccary columns, still one row per breed, no business logic yet. Also it reads from landing and filters down to only the latest `run_date` partition — the business questions don't care about the data's history, only its current state, so staging doesn't carry the timeline forward.
+
+3. **Marts** — the final tables shaped around the dashboard's actual questions, populating it directly.
+
+**Traded off**
+Rebuilding landing from every historical raw file, rather than appending incrementally, means every build re-reads and re-parses all of it, not just the new day — fine at 628 rows, but the cost grows linearly with how long the pipeline has been running, and there's no incremental loading.
+
 
 **With more time**
+Move landing to an incremental model — only parse and load new `run_date` partitions, keyed so a rerun of the same day doesn't duplicate — once the full-rebuild cost stops being negligible. 
+
+On the modelling: `weight`/`height` sometimes embed a male/female split (`"Male: 55-65; Female: 45-55"`) instead of a plain range — staging collapses both shapes to one overall min/max per breed, so the sex-specific split isn't surfaced past this layer. That's deliberate, not an oversight: none of the four target questions need it, and the raw distinction still exists untouched in `landing.breeds` if it's ever needed. Modelling it properly later would mean a separate table at `breed_id` + `sex` grain (one row per sex where the source splits it, one `unisex` row where it doesn't), built off landing rather than off `stg_breeds`, so the normalized shape only gets built once a question actually needs it.
+
+Also, I'd move the "only latest" filter out of staging entirely. Right now stg_breeds cleans and immediately filters to the latest run_date. If reusability and time-series analysis became a requirement, I'd have staging clean and type all historical partitions with no filtering, and push the "latest only" logic down into a new intermediate layer instead. That keeps every cleaned row available for anything that needs history, while marts (or the dashboard) still get a simple, current-state view through the intermediate layer.
 
 
 ---

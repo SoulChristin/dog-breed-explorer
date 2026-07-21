@@ -12,7 +12,7 @@ See **(DECISIONS.md)** for the reasoning and trade-offs behind the choices.
 
 **3. Transformation** — `dog_explorer_dbt/` (dbt Core + DuckDB):
 - **Landing** (`models/landing/breeds.sql`) — every raw JSON field, untouched, plus a `source_file` column for traceability.
-- **Staging** — parses/cleans landing columns into real types. *(not yet built)*
+- **Staging** (`models/staging/stg_breeds.sql`) — filters to the latest `run_date`, renames to snake_case with real types, drops unused/duplicate columns, and parses `life_span`, `temperament`, `weight`, `height` into usable shapes.
 - **Marts** — analytics-ready tables for the dashboard. *(not yet built)*
 
 ## Running it
