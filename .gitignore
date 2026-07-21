@@ -9,4 +9,4 @@ dog_explorer_dbt/dbt_packages/
 dog_explorer_dbt/.user.yml
 
 # --- DuckDB warehouse -------
-warehouse/*.duckdb
+warehouse/**/*.duckdb

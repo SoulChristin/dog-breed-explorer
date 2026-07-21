@@ -3,5 +3,9 @@ dog_explorer:
   outputs:
     dev:
       type: duckdb
-      path: '../warehouse/dog_explorer_dev.duckdb'
+      path: '../warehouse/dev/dog_explorer.duckdb'
+      schema: landing
+    prod:
+      type: duckdb
+      path: '../warehouse/prod/dog_explorer.duckdb'
       schema: landing

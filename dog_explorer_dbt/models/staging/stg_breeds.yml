@@ -1,0 +1,29 @@
+version: 2
+
+models:
+  - name: stg_breeds
+    description: >
+      One row per breed (latest run_date partition only), with types fixed,
+      names snake_cased, and multi-value fields parsed into ranges/lists.
+    columns:
+      - name: breed_id
+        description: Primary key. Enforces the one-row-per-breed grain of this model.
+        data_tests:
+          - not_null
+          - unique
+
+      - name: breed_name
+        description: Trimmed breed name. Always present.
+        data_tests:
+          - not_null
+
+      - name: life_span_min
+        description: Lower bound of the life span in years; null when source life_span is null.
+
+      - name: life_span_max
+        description: Upper bound of the life span in years; null when source life_span is null.
+
+      - name: source_file
+        description: Origin file path of the row, carried through for traceability.
+        data_tests:
+          - not_null
