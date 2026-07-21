@@ -17,10 +17,10 @@ models:
         data_tests:
           - not_null
 
-      - name: life_span_min
+      - name: life_span_min_years
         description: Lower bound of the life span in years; null when source life_span is null.
 
-      - name: life_span_max
+      - name: life_span_max_years
         description: Upper bound of the life span in years; null when source life_span is null.
 
       - name: source_file

@@ -1,0 +1,61 @@
+name: Deploy
+
+# On merge to main, rebuild the prod warehouse from the committed raw
+# partitions. This is the run step: dbt build executes the models and their
+# tests together, so a merge that breaks the data fails here instead of
+# silently shipping a bad prod warehouse.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two prod builds write the same warehouse file at once, and never
+# cancel one midway - a half-built warehouse is worse than a slow one.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: dbt build (prod)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create warehouse directories
+        run: mkdir -p warehouse/dev warehouse/prod
+
+      - name: dbt build (prod target)
+        working-directory: dog_explorer_dbt
+        run: dbt build --profiles-dir . --target prod
+
+      # The warehouse is gitignored, so without this the built prod database
+      # would only ever exist on the runner and vanish with it.
+      - name: Upload prod warehouse
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-warehouse
+          path: warehouse/prod/dog_explorer.duckdb
+          retention-days: 30
+
+      - name: Upload dbt run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-run-results-prod
+          path: |
+            dog_explorer_dbt/target/
+            dog_explorer_dbt/logs/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -1,0 +1,55 @@
+name: CI
+
+# Every pull request builds all models and runs every data test against a
+# throwaway dev warehouse. `dbt build` interleaves models and their tests, so
+# both broken SQL and bad data fail the check and block the merge.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same PR supersedes the run still in flight.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: dbt build + test (dev)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # warehouse/ contains only gitignored .duckdb files, so the directories
+      # do not exist in a fresh clone and DuckDB cannot create the database.
+      - name: Create warehouse directories
+        run: mkdir -p warehouse/dev warehouse/prod
+
+      # No DOG_API_KEY here: the raw run_date partitions are committed, so the
+      # whole pipeline rebuilds from what is already in the repo. CI never
+      # calls TheDogAPI.
+      - name: dbt build (models + tests)
+        working-directory: dog_explorer_dbt
+        run: dbt build --profiles-dir . --target dev
+
+      # target/run_results.json records the pass/fail and timing of every model
+      # and test. Uploaded even on failure, so a red run is diagnosable.
+      - name: Upload dbt run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-run-results
+          path: |
+            dog_explorer_dbt/target/
+            dog_explorer_dbt/logs/
+          retention-days: 14
+          if-no-files-found: ignore

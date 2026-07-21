@@ -1,5 +1,9 @@
 # Dog Breed Explorer
 
+[![CI](https://github.com/SoulChristin/dog-breed-explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/SoulChristin/dog-breed-explorer/actions/workflows/ci.yml)
+[![Deploy](https://github.com/SoulChristin/dog-breed-explorer/actions/workflows/deploy.yml/badge.svg)](https://github.com/SoulChristin/dog-breed-explorer/actions/workflows/deploy.yml)
+[![Daily refresh](https://github.com/SoulChristin/dog-breed-explorer/actions/workflows/daily-refresh.yml/badge.svg)](https://github.com/SoulChristin/dog-breed-explorer/actions/workflows/daily-refresh.yml)
+
 An analytics pipeline over [TheDogAPI](https://api.thedogapi.com/v1/breeds).
 
 See **(DECISIONS.md)** for the reasoning and trade-offs behind the choices.
@@ -8,7 +12,7 @@ See **(DECISIONS.md)** for the reasoning and trade-offs behind the choices.
 
 **1. Extraction & Ingestion** — `src/ingest_breeds.py` fetches the breed catalogue from TheDogAPI and writes the raw response to disk, unmodified, partitioned by run date (`data/raw/run_date=<date>/breeds.json`).
 
-**2. Daily refresh** — `.github/workflows/daily-refresh.yml` runs the ingestion script on a schedule (and can be triggered manually), committing a new raw partition back to the repo when the data changes.
+**2. Daily refresh** — `.github/workflows/daily-refresh.yml` runs the ingestion script on a schedule (and can be triggered manually), committing a new raw partition back to the repo when the data changes, then rebuilding the `prod` warehouse and running every test against the new data.
 
 **3. Transformation** — `dog_explorer_dbt/` (dbt Core + DuckDB):
 
@@ -16,7 +20,16 @@ See **(DECISIONS.md)** for the reasoning and trade-offs behind the choices.
 - **Staging** (`models/staging/`) — reads landing, filters to the latest `run_date`, renames to snake_case with real types, trims text and collapses blanks to `NULL`, drops unused/duplicate columns, and parses `life_span`, `temperament`, `weight` and `height` into usable shapes. Also derives the business columns the marts aggregate on (`size_class`, the life-span midpoint, the weight midpoint).
   - `stg_breeds` — one row per breed.
   - `stg_breed_temperaments` — one row per breed x trait, so temperaments are joinable and countable.
-- **Marts** (`models/marts/`) — analytics-ready tables.
+- **Marts** (`models/marts/`) — analytics-ready tables, one question per model:
+
+| Question | Mart |
+| --- | --- |
+| Which breeds have the longest predicted life span? | `mart_longest_lived_breeds` |
+| How are breeds distributed across weight classes? | `mart_size_lifespan` (`breed_count`) |
+| Is there a relationship between size and life span? | `mart_size_lifespan` (`avg_life_span_years`) |
+| What are the top temperaments among family-friendly breeds? | `mart_temperament_summary` |
+
+Breeds are bucketed into `size_class` (Toy / Small / Medium / Large / Giant) from the midpoint of the metric weight range. "Family-friendly" has no flag in the source, so it is defined as a short, editable list of traits in `mart_temperament_summary.sql` rather than an unauditable score.
 
 ## Warehouses
 

@@ -1,6 +1,7 @@
 name: Daily refresh
 
-# Fetches the breed catalogue and commits the raw payload back to the repo.
+# Fetches the breed catalogue, commits the raw payload back to the repo, then
+# rebuilds the prod warehouse from it and runs every test.
 # This is the only workflow that calls TheDogAPI, and the only one that needs
 # DOG_API_KEY.
 
@@ -49,3 +50,35 @@ jobs:
           # That is a successful no-op, not a failure.
           git diff --staged --quiet || git commit -m "Daily refresh: $(date -u +%Y-%m-%d)"
           git push
+
+      # warehouse/ holds only gitignored .duckdb files, so the directories do
+      # not exist in a fresh clone and DuckDB cannot create the database.
+      - name: Create warehouse directories
+        run: mkdir -p warehouse/dev warehouse/prod
+
+      # Runs after the commit on purpose: the raw payload is already safely
+      # stored, so a broken model fails this run without losing the day's data.
+      - name: dbt build (prod target)
+        working-directory: dog_explorer_dbt
+        run: dbt build --profiles-dir . --target prod
+
+      - name: Upload prod warehouse
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-warehouse-${{ github.run_id }}
+          path: warehouse/prod/dog_explorer.duckdb
+          retention-days: 30
+
+      # run_results.json lists the pass/fail of every model and test. Uploaded
+      # even on failure, so a red night is diagnosable without a re-run.
+      - name: Upload dbt run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-run-results-nightly-${{ github.run_id }}
+          path: |
+            dog_explorer_dbt/target/
+            dog_explorer_dbt/logs/
+          retention-days: 14
+          if-no-files-found: ignore

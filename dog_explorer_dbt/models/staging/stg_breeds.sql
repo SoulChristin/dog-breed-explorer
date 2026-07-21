@@ -64,17 +64,18 @@ parsed as (
         breed_name,
 
         -- "12-15" -> 12 / 15. Null life_span stays null/null, not fabricated.
-        split_part(life_span, '-', 1)::integer as life_span_min,
-        split_part(life_span, '-', 2)::integer as life_span_max,
+        split_part(life_span, '-', 1)::integer as life_span_min_years,
+        split_part(life_span, '-', 2)::integer as life_span_max_years,
 
         -- Range midpoint: the single representative life expectancy used to
         -- rank breeds and correlate lifespan against size. Null propagates,
         -- so breeds with no life_span get null rather than a fabricated value.
-        (life_span_min + life_span_max) / 2.0 as life_span_avg_years ,
+        (life_span_min_years + life_span_max_years) / 2.0 as life_span_avg_years,
 
-        -- comma-separated string -> trimmed list, so it's filterable with
-        -- list_contains() instead of substring matching.
-        list_transform(string_split(temperament, ','), x -> trim(x)) as temperament,
+        -- Left as the cleaned comma-separated string: stg_breed_temperaments
+        -- splits it into one row per breed x trait, which is the shape any
+        -- trait-level question actually needs.
+        temperament,
 
         origin,
         country_code,
@@ -93,8 +94,8 @@ parsed as (
         -- I think if I wanted to surface that, I would create a separate table for male/female ranges in order to keep the one row per breed grain of this table.
         list_min(list_transform(regexp_extract_all(weight_imperial_raw, '[0-9]+\.?[0-9]*'), x -> x::double)) as weight_imperial_min,
         list_max(list_transform(regexp_extract_all(weight_imperial_raw, '[0-9]+\.?[0-9]*'), x -> x::double)) as weight_imperial_max,
-        list_min(list_transform(regexp_extract_all(weight_metric_raw, '[0-9]+\.?[0-9]*'), x -> x::double)) as weight_metric_min,
-        list_max(list_transform(regexp_extract_all(weight_metric_raw, '[0-9]+\.?[0-9]*'), x -> x::double)) as weight_metric_max,
+        list_min(list_transform(regexp_extract_all(weight_metric_raw, '[0-9]+\.?[0-9]*'), x -> x::double)) as weight_min_kg,
+        list_max(list_transform(regexp_extract_all(weight_metric_raw, '[0-9]+\.?[0-9]*'), x -> x::double)) as weight_max_kg,
 
         list_min(list_transform(regexp_extract_all(height_imperial_raw, '[0-9]+\.?[0-9]*'), x -> x::double)) as height_imperial_min,
         list_max(list_transform(regexp_extract_all(height_imperial_raw, '[0-9]+\.?[0-9]*'), x -> x::double)) as height_imperial_max,
@@ -103,6 +104,10 @@ parsed as (
 
         alt_breed_code,
         alt_breed_name,
+
+        -- run_date pulled off the partition path so downstream models can
+        -- group/track by load date without re-parsing source_file.
+        regexp_extract(source_file, 'run_date=([0-9-]+)', 1) as run_date,
         source_file
 
     from renamed
@@ -121,17 +126,17 @@ classified as (
 
         -- Representative weight (kg): midpoint of the combined min-max range.
         -- Exposed as its own column so the mart and size_class share one value.
-        (weight_metric_min + weight_metric_max) / 2.0 as weight_metric_avg,
+        (weight_min_kg + weight_max_kg) / 2.0 as weight_avg_kg,
 
         -- Size bucket. Cutoffs are kilograms, so this reads the METRIC midpoint,
         -- not imperial. Null weight -> null class, guarded first so weightless
         -- breeds are not silently defaulted into 'Giant'.
         case
-            when weight_metric_min is null then null
-            when weight_metric_avg <  5 then 'Toy'
-            when weight_metric_avg < 10 then 'Small'
-            when weight_metric_avg < 25 then 'Medium'
-            when weight_metric_avg < 45 then 'Large'
+            when weight_min_kg is null then null
+            when weight_avg_kg <  5 then 'Toy'
+            when weight_avg_kg < 10 then 'Small'
+            when weight_avg_kg < 25 then 'Medium'
+            when weight_avg_kg < 45 then 'Large'
             else 'Giant'
         end as size_class
 
