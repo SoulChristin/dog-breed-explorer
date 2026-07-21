@@ -1,0 +1,59 @@
+version: 2
+
+models:
+  - name: mart_size_lifespan
+    description: >
+      One row per size class. Answers the weight-distribution and
+      size-vs-lifespan questions. Excludes breeds with no parsed weight.
+    columns:
+      - name: size_class
+        tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['Toy', 'Small', 'Medium', 'Large', 'Giant']
+      - name: size_rank
+        description: Sort key. Alphabetical ordering of the label is meaningless on an axis.
+        tests:
+          - unique
+          - not_null
+      - name: breed_count
+        tests:
+          - not_null
+      - name: avg_life_span_years
+        description: Mean of per-breed life-span midpoints, over breeds_with_life_span rows.
+
+  - name: mart_longest_lived_breeds
+    description: >
+      Breeds ranked by predicted life span, using the midpoint of the published
+      range rather than its maximum.
+    columns:
+      - name: breed_name
+        tests:
+          - not_null
+      - name: life_span_avg_years
+        tests:
+          - not_null
+      - name: life_span_rank
+        tests:
+          - not_null
+
+  - name: mart_temperament_summary
+    description: >
+      Trait frequency among breeds meeting a stated family-friendly definition.
+      The definition is a project convention, declared in SQL in the model.
+    columns:
+      - name: trait
+        tests:
+          - not_null
+      - name: trait_key
+        tests:
+          - unique
+          - not_null
+      - name: breed_count
+        tests:
+          - not_null
+      - name: is_defining_trait
+        description: >
+          True where the trait is one of those used to select the population,
+          and therefore guaranteed to rank highly by construction.

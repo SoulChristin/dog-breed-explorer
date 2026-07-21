@@ -5,8 +5,8 @@ select
     breed_id,
     breed_name
 from {{ ref('stg_breeds') }}
-where life_span_min      > life_span_max
-   or weight_imperial_min > weight_imperial_max
-   or weight_metric_min   > weight_metric_max
-   or height_imperial_min > height_imperial_max
-   or height_metric_min   > height_metric_max
+where life_span_min_years > life_span_max_years
+   or weight_imperial_min  > weight_imperial_max
+   or weight_min_kg        > weight_max_kg
+   or height_imperial_min  > height_imperial_max
+   or height_metric_min    > height_metric_max

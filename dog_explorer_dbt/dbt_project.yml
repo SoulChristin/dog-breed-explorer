@@ -6,6 +6,7 @@ profile: 'dog_explorer'
 
 model-paths: ["models"]
 macro-paths: ["macros"]
+test-paths: ["tests"]
 
 target-path: "target"
 clean-targets:
@@ -20,3 +21,6 @@ models:
     staging:
       +materialized: table
       +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts
