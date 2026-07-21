@@ -83,15 +83,7 @@ Also, I'd move the "only latest" filter out of staging entirely. Right now stg_b
 ## 4. Version Control
 
 **Which tool and why**
-
-
-**What it does shortly**
-
-
-**Traded off**
-
-
-**With more time**
+Git, hosted on GitHub. Every part of this project is text — the Python ingestion script, the SQL models, the workflow YAML, the docs — so there's nothing that needs a store other than git. GitHub specifically because it also gives me Actions and Secrets, so version control, scheduling and CI/CD all live in one system instead of three accounts wired together.
 
 
 ---
@@ -99,15 +91,9 @@ Also, I'd move the "only latest" filter out of staging entirely. Right now stg_b
 ## 5. CI/CD
 
 **Which tool and why**
-
-
-**What it does shortly**
-
-
-**Traded off**
-
-
+GitHub Actions again, for the same reason as the scheduling: the repo is already on GitHub, so there's no separate CI service to stand up, authorise and maintain. 
 **With more time**
+Unit tests for `ingest_breeds.py` with the HTTP call mocked, covering the cases that matter: a truncated payload is rejected, a non-200 response raises, the partition path is correct, and re-running the same day is idempotent.
 
 
 ---
@@ -119,11 +105,10 @@ I used GitHub workflows (`.github/workflows/daily-refresh.yml`) because the repo
 GitHub Actions handles when things run (the daily schedule, retries, secrets), while dbt handles what order the SQL models run in and whether they're correct (tests, docs). Splitting them keeps each tool doing only the job it's good at, instead of one heavy tool trying to do both.
 
 **What it does shortly**
-The Github workflow: The Runs on a cron schedule (02:00 UTC daily), plus `workflow_dispatch` so a failed night can be re-run manually without waiting a day. A `concurrency` group prevents two runs from writing the same day's partition at once. It checks out the repo, installs dependencies, runs `src/ingest_breeds.py` with `DOG_API_KEY` from GitHub Secrets, and commits the raw payload back to `main` under a bot identity — only committing when the data actually changed (an identical payload is a successful no-op, not a failure).
+The Github workflow: The Runs on a cron schedule (02:00 UTC daily), plus `workflow_dispatch` so a failed night can be re-run manually without waiting a day. A `concurrency` group prevents two runs from writing the same day's partition at once. It checks out the repo, installs dependencies, runs `src/ingest_breeds.py` with `DOG_API_KEY` from GitHub Secrets, and commits the raw payload back to `main` under a bot identity — only committing when the data actually changed (an identical payload is a successful no-op, not a failure). It then rebuilds the `prod` warehouse and runs every test against the newly landed data.
 
-**Traded off**
+The dbt build runs *after* the commit on purpose. The raw payload is the thing that can't be regenerated once the day has passed, so it gets stored first; a broken model then fails the run without costing me the day's data.
 
-**With more time**
 
 
 ---
@@ -131,13 +116,12 @@ The Github workflow: The Runs on a cron schedule (02:00 UTC daily), plus `workfl
 ## 7. Dashboard & Visualization
 
 **Which tool and why**
-
-
-**What it does shortly**
-
+Streamlit, on the same reasoning I've applied everywhere else here: it adds no infrastructure. It's a Python file in the repo that opens the DuckDB file directly — no server to run, no BI connector, no export step, and it's reviewable by reading it like any other source file.
 
 **Traded off**
+It's local only. There's nothing deployed, so a reviewer has to clone the repo, install the dependencies and build the warehouse with dbt before they can see anything — which is a real cost for something whose whole purpose is to be looked at.
 
 
 **With more time**
+Deploy it.
 

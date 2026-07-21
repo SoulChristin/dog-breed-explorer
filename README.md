@@ -66,6 +66,12 @@ dbt build --profiles-dir . --target dev     # or --target prod
 
 `dbt build` runs the models and their tests together, so a failing test stops anything downstream from being built on bad data. Every model is materialized as a table and rebuilt from scratch on each run, so re-running is safe and never duplicates rows.
 
+## Dashboard
+
+```bash
+streamlit run src/dashboard.py
+```
+
 ## Exploring the warehouse
 
 The DuckDB UI can open both warehouses side by side:
