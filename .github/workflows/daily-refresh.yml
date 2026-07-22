@@ -24,9 +24,10 @@ concurrency:
   group: daily-refresh
   cancel-in-progress: false
 
-# Least privilege: this workflow needs to push one commit, nothing more.
+# Raise an issue when the run fails.
 permissions:
   contents: write
+  issues: write
 
 jobs:
   refresh:
@@ -89,3 +90,66 @@ jobs:
             dog_explorer_dbt/logs/
           retention-days: 14
           if-no-files-found: ignore
+
+      # The only signal that arrives on its own. The README badges and the
+      # Actions tab both require someone to think to go and look, which is no
+      # use for an unattended 02:00 UTC job - and this is the one workflow that
+      # can lose data. Raising an issue routes through GitHub's own notification
+      # system, so it reaches the repo owner without a webhook, a secret, or an
+      # external service to keep alive.
+      #
+      # failure() covers any failed step, which is what makes this cover both
+      # named cases: the API fetch and the dbt build (models and tests alike).
+      #
+      # Runs last so the artifact upload above has already completed and the
+      # linked run is whole by the time anyone opens it.
+      - name: Open an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # Idempotent: --force updates the label if it already exists, so this
+          # never fails on the second run and needs no manual setup in a fork.
+          gh label create pipeline-failure \
+            --color B60205 \
+            --description "Automated: a scheduled pipeline run failed" \
+            --force
+
+          BODY=$(cat <<EOF
+          The scheduled refresh failed on $(date -u +%Y-%m-%d) at $(date -u +%H:%M) UTC.
+
+          **Run:** $RUN_URL
+
+          **What this means**
+          - The API fetch may not have completed, so today's \`data/raw/run_date=\` partition may be missing.
+          - If the fetch succeeded but \`dbt build\` failed, the raw payload *was* committed (it is committed before the build on purpose) but the prod warehouse is stale or partially built.
+          - \`dbt build\` runs models and tests together, so this also fires when the data itself is bad, not just when the SQL is broken.
+
+          **Next steps**
+          1. Open the run above and read the failing step. The \`dbt-run-results-nightly-*\` artifact has the full logs and \`run_results.json\`.
+          2. Fix the cause.
+          3. Re-run *Daily refresh* from the Actions tab — it is \`workflow_dispatch\`-enabled so it does not have to wait for tomorrow.
+
+          Closing this issue is the signal that the pipeline is healthy again.
+          EOF
+          )
+
+          # One issue per incident, not one per night. A run that fails five
+          # nights running comments on the existing thread instead of opening
+          # five near-identical issues; closing it starts a fresh one.
+          EXISTING=$(gh issue list \
+            --label pipeline-failure --state open \
+            --limit 1 --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "Commenting on existing issue #$EXISTING"
+            gh issue comment "$EXISTING" --body "Failed again — $RUN_URL"
+          else
+            gh issue create \
+              --title "Daily refresh failed: $(date -u +%Y-%m-%d)" \
+              --body "$BODY" \
+              --label pipeline-failure
+          fi
