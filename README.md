@@ -10,7 +10,7 @@
 
 ## 📊 What the dashboard shows
 - Which breeds have the longest predicted life span? 
-        The top breeds who lived the longest live are the Denmark Feist, Koolie,Miniature Fox Terrier, Rat Terrier, Silken Windhound with around 15 yeras life span in average.
+        The top breeds who lived the longest lives are the Denmark Feist, Koolie,Miniature Fox Terrier, Rat Terrier, Silken Windhound with around 15 years life span in average.
 
 - How are breeds distributed across weight classes?
         Most dog breeds fall into the Medium and Large weight classes, with Medium being the most common. Small and Giant breeds are considerably less common, while Toy breeds represent the smallest group in the dataset.

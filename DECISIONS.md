@@ -43,14 +43,17 @@ I use dbt Core to move data through landing → staging → marts. It's the righ
     3. **Marts** — the final tables shaped around the dashboard's actual questions, populating it directly.
 
 **Traded off**
- Regarding the archtecture: Rebuilding landing from every historical raw file, rather than appending incrementally, means every build re-reads and re-parses all of it, not just the new day — fine at 628 rows, but the cost grows linearly with how long the pipeline has been running, and there's no incremental loading.
+ Regarding the archtecture: The current architecture does not retain history in the cleaned layer, so time-series analysis is not possible on curated data.
 
 **With more time**
+Rebuilding landing from every historical raw file, rather than appending incrementally, means every build re-reads and re-parses all of it, not just the new day — fine at 628 rows, but the cost grows linearly with how long the pipeline has been running, and there's no incremental loading.
+
 On the modelling: `weight`/`height` sometimes embed a male/female split (`"Male: 55-65; Female: 45-55"`) instead of a plain range — staging collapses both shapes to one overall min/max per breed, so the sex-specific split isn't surfaced past this layer. That's deliberate, not an oversight: none of the four target questions need it, and the raw distinction still exists untouched in `landing.breeds` if it's ever needed. Modelling it properly later would mean a separate table at `breed_id` + `sex` grain (one row per sex where the source splits it, one `unisex` row where it doesn't), built off landing rather than off `stg_breeds`, so the normalized shape only gets built once a question actually needs it.
 
 Also, I'd move the "only latest" filter out of staging entirely. Right now stg_breeds cleans and immediately filters to the latest run_date. If reusability and time-series analysis became a requirement, I'd have staging clean and type all historical partitions with no filtering, and push the "latest only" logic down into a new intermediate layer instead. That keeps every cleaned row available for anything that needs history, while marts (or the dashboard) still get a simple, current-state view through the intermediate layer.
+I would also add more tests.
 
-I would add also more tests.
+
 ---
 
 ## 4. Version Control
@@ -75,7 +78,7 @@ GitHub Actions again, for the same reason as the scheduling: the repo is already
 No trade off on the tool I can think.
 
 **With more time**
-If I had more time, I would improve the CI/CD by adding stronger validation, better failure diagnostics, and a clearer “build proved by dev and prod” pipeline — not by introducing a heavier orchestration system.
+If I had more time, I would improve the CI/CD by adding stronger validation, better failure diagnostics, and a clearer “build proved by dev and prod” pipeline.
 
 ---
 
@@ -83,13 +86,13 @@ If I had more time, I would improve the CI/CD by adding stronger validation, bet
 
 **Which tool and why**
 I used GitHub workflows because the repo already lives on GitHub, so there's no extra system to stand up — a dedicated orchestrator (Airflow, Dagster, Prefect) would be solving for multi-step DAGs and retries across many jobs, which this single daily fetch doesn't have.
-GitHub Actions handles when things run (the daily schedule, retries, secrets), while dbt handles what order the SQL models run in and whether they're correct (tests, docs). Splitting them keeps each tool doing only the job it's good at, instead of one heavy tool trying to do both.
+GitHub handles when things run (the daily schedule, retries, secrets), while dbt handles what order the SQL models run in and whether they're correct (tests, docs). Splitting them keeps each tool doing only the job it's good at, instead of one heavy tool trying to do both.
 
 **Traded off** 
-Simple and cheap now but less powerful for future growth.
+Simple and cheap now but less powerful (lose the observability on data) for future growth.
 
 **With more time**
-At this scale, I would not replace the orchestrator. I would only strengthen the failure reportinf and keep the scheduled job simple.
+At this scale, I would not replace the orchestrator. I would only strengthen the failure reporting and keep the scheduled job simple.
 ---
 
 ## 7. Dashboard & Visualization
@@ -98,7 +101,7 @@ At this scale, I would not replace the orchestrator. I would only strengthen the
 Streamlit, on the same reasoning I've applied everywhere else here: it adds no infrastructure. It's a Python file in the repo that opens the DuckDB file directly — no server to run, no BI connector, no export step, and it's reviewable by reading it like any other source file.
 
 **Traded off**
-It's local only. There's nothing deployed, so a reviewer has to clone the repo, install the dependencies and build the warehouse with dbt before they can see anything — which is a real cost for something whose whole purpose is to be looked at.
+It's local only. There's nothing deployed, so a reviewer has to clone the repo, install the dependencies and build the warehouse with dbt before they can see anything.
 
 **With more time**
 Deploy it.
