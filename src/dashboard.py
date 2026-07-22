@@ -15,11 +15,14 @@ import duckdb
 import pandas as pd
 import streamlit as st
 
-# Default to prod; override with the sidebar if you want to look at dev.
+# Default to dev; override with the sidebar if you want to look at prod.
+# dev is dbt's own default target, so this is the warehouse that exists after a
+# plain `dbt build` - the dashboard opens against whatever a fresh clone built,
+# rather than erroring on a prod file nobody asked for.
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WAREHOUSES = {
-    "prod": REPO_ROOT / "warehouse" / "prod" / "dog_explorer.duckdb",
     "dev": REPO_ROOT / "warehouse" / "dev" / "dog_explorer.duckdb",
+    "prod": REPO_ROOT / "warehouse" / "prod" / "dog_explorer.duckdb",
 }
 
 # Keeps the size buckets in physical order everywhere they are plotted.

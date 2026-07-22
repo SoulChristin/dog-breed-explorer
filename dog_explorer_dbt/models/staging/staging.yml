@@ -35,7 +35,7 @@ models:
       masquerading as a trait is filtered out.
     columns:
       - name: breed_id
-        tests:
+        data_tests:
           - not_null
           - relationships:
               to: ref('stg_breeds')
@@ -43,7 +43,7 @@ models:
 
       - name: trait_key
         description: Canonical lower-case trait. Group and join on this.
-        tests:
+        data_tests:
           - not_null
 
       - name: trait

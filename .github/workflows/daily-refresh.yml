@@ -1,15 +1,22 @@
 name: Daily refresh
 
-# Fetches the breed catalogue, commits the raw payload back to the repo, then
-# rebuilds the prod warehouse from it and runs every test.
+# Scheduled ingestion. Fetches the breed catalogue, commits the raw payload back
+# to the repo, then rebuilds the warehouse from it and runs every test.
+#
 # This is the only workflow that calls TheDogAPI, and the only one that needs
 # DOG_API_KEY.
+#
+# It builds the models itself rather than leaving that to deploy.yml. GitHub
+# deliberately does not start new workflow runs from pushes made with the
+# default GITHUB_TOKEN - that is its guard against a workflow retriggering
+# itself forever - so the commit pushed below will NOT trigger deploy.yml.
+# Without the build step here, each night's data would land untested.
 
 on:
   schedule:
     # 02:00 UTC daily.
     - cron: '0 2 * * *'
-    # Manual trigger, so a failed night can be re-run without waiting a day.
+  # Manual trigger, so a failed night can be re-run without waiting a day.
   workflow_dispatch:
 
 # Prevent two runs writing the same day's partition at once.
@@ -17,30 +24,38 @@ concurrency:
   group: daily-refresh
   cancel-in-progress: false
 
+# Least privilege: this workflow needs to push one commit, nothing more.
+permissions:
+  contents: write
+
 jobs:
   refresh:
+    name: Fetch, commit, and rebuild
     runs-on: ubuntu-latest
-
-    permissions:
-    # Required to push the raw JSON commit back to main.
-      contents: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: pip
+          cache: pip                      # reuses the wheel cache between runs
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # The only step that reaches the network. DOG_API_KEY is injected from
+      # repository secrets and is never written to disk or echoed.
       - name: Fetch from TheDogAPI
         env:
           DOG_API_KEY: ${{ secrets.DOG_API_KEY }}
         run: python src/ingest_breeds.py
 
+      # Commit first, build second. The raw payload is the only thing that
+      # cannot be regenerated once the day has passed, so it is stored before
+      # anything that might fail - a broken model then fails this run without
+      # costing the day's data.
       - name: Commit the day's raw payload
         run: |
           git config user.name  "github-actions[bot]"
@@ -56,19 +71,11 @@ jobs:
       - name: Create warehouse directories
         run: mkdir -p warehouse/dev warehouse/prod
 
-      # Runs after the commit on purpose: the raw payload is already safely
-      # stored, so a broken model fails this run without losing the day's data.
-      - name: dbt build (prod target)
+      # dbt build interleaves models and their tests, so bad data stops the
+      # models downstream of it from being built on top of it.
+      - name: dbt build (models + tests, prod target)
         working-directory: dog_explorer_dbt
         run: dbt build --profiles-dir . --target prod
-
-      - name: Upload prod warehouse
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: prod-warehouse-${{ github.run_id }}
-          path: warehouse/prod/dog_explorer.duckdb
-          retention-days: 30
 
       # run_results.json lists the pass/fail of every model and test. Uploaded
       # even on failure, so a red night is diagnosable without a re-run.

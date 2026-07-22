@@ -1,17 +1,24 @@
 name: CI
 
+# Continuous integration for pull requests targeting main.
+#
 # Every pull request builds all models and runs every data test against a
-# throwaway dev warehouse. `dbt build` interleaves models and their tests, so
-# both broken SQL and bad data fail the check and block the merge.
+# throwaway dev warehouse, so a branch cannot merge until the pipeline it
+# changes still builds and still passes on the committed data.
 
 on:
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 # A new push to the same PR supersedes the run still in flight.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+# Read-only: CI inspects the branch, it never writes to it.
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
@@ -21,7 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: pip
@@ -36,7 +44,12 @@ jobs:
 
       # No DOG_API_KEY here: the raw run_date partitions are committed, so the
       # whole pipeline rebuilds from what is already in the repo. CI never
-      # calls TheDogAPI.
+      # calls TheDogAPI - the checks are hermetic and cost no rate limit.
+      #
+      # dbt build interleaves models and their tests (20 schema tests + 2
+      # singular tests), so both broken SQL and bad data fail the check and
+      # block the merge. Runs against the dev target; deploy.yml runs the same
+      # models against prod, which is what proves they are target-agnostic.
       - name: dbt build (models + tests)
         working-directory: dog_explorer_dbt
         run: dbt build --profiles-dir . --target dev

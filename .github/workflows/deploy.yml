@@ -1,9 +1,15 @@
 name: Deploy
 
-# On merge to main, rebuild the prod warehouse from the committed raw
-# partitions. This is the run step: dbt build executes the models and their
-# tests together, so a merge that breaks the data fails here instead of
-# silently shipping a bad prod warehouse.
+# Continuous delivery for main. Runs when a pull request is merged (any push to
+# main), and rebuilds every model against the prod target from the committed raw
+# partitions.
+#
+# There is nothing to host: the dashboard is a local Streamlit app and the
+# warehouse is a DuckDB file rebuildable from the raw partitions at any time.
+# So the delivery step here is the production *run* - the same models the PR
+# built against dev, executed against prod and re-tested. That is what proves
+# the transformations are target-agnostic: identical SQL, only the warehouse
+# path differs between the two profiles.
 
 on:
   push:
@@ -16,15 +22,37 @@ concurrency:
   group: deploy-main
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
-  deploy:
-    name: dbt build (prod)
+  build:
+    name: Build and test (prod target)
     runs-on: ubuntu-latest
+
+    # Environment placeholder. `prod` is where deployment credentials would be
+    # scoped once there is somewhere to deploy to - GitHub environments also
+    # give required reviewers and branch restrictions on top of plain secrets.
+    # Uncomment once a prod environment exists in repo settings:
+    # environment: prod
+
+    env:
+      DBT_TARGET: prod
+      # Deployment credential placeholders. Nothing here needs them today:
+      # DuckDB is a local file, so profiles.yml carries no secrets, and the raw
+      # data is already in the repo. A hosted warehouse or a deployed dashboard
+      # would read its credentials here, from repository or environment secrets
+      # - never from a committed file.
+      #
+      # WAREHOUSE_HOST: ${{ vars.WAREHOUSE_HOST }}
+      # WAREHOUSE_USER: ${{ secrets.WAREHOUSE_USER }}
+      # WAREHOUSE_PASSWORD: ${{ secrets.WAREHOUSE_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: pip
@@ -32,23 +60,20 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # warehouse/ holds only gitignored .duckdb files, so the directories do
+      # not exist in a fresh clone and DuckDB cannot create the database.
       - name: Create warehouse directories
         run: mkdir -p warehouse/dev warehouse/prod
 
-      - name: dbt build (prod target)
+      # The production run. dbt build executes models and their tests together,
+      # so a merge that breaks the data fails here rather than passing silently.
+      - name: dbt build (models + tests)
         working-directory: dog_explorer_dbt
-        run: dbt build --profiles-dir . --target prod
+        run: dbt build --profiles-dir . --target "$DBT_TARGET"
 
-      # The warehouse is gitignored, so without this the built prod database
-      # would only ever exist on the runner and vanish with it.
-      - name: Upload prod warehouse
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: prod-warehouse
-          path: warehouse/prod/dog_explorer.duckdb
-          retention-days: 30
-
+      # The built warehouse is deliberately not kept as an artifact. Nothing
+      # consumes a hosted prod database, and it is reproducible from the raw
+      # partitions on demand - what matters from this run is whether it passed.
       - name: Upload dbt run artifacts
         if: always()
         uses: actions/upload-artifact@v4
