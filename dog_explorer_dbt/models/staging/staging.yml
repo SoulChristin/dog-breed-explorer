@@ -26,14 +26,10 @@ models:
       - name: height_avg_cm
         description: >
           Average breed height in cm, from the midpoint of the parsed range.
-          The size measure the scatter and correlation marts read; left
-          unbanded because both need the raw value.
 
       - name: weight_class
         description: >
-          Mass band from the weight midpoint in kg. Named weight_class, never
-          "size_class": it is a different measurement from height and
-          correlates differently against life span.
+          Mass band from the weight midpoint in kg.
         data_tests:
           - accepted_values:
               values: ['Toy', 'Small', 'Medium', 'Large', 'Giant']
@@ -42,3 +38,24 @@ models:
         description: Origin file path of the row, carried through for traceability.
         data_tests:
           - not_null
+
+  - name: stg_breed_temperaments
+    description: >
+      One row per breed x trait. Turns the comma-separated temperament string
+      into something joinable and countable. Case is normalised, and prose
+      masquerading as a trait is filtered out.
+    columns:
+      - name: breed_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_breeds')
+              field: breed_id
+
+      - name: trait_key
+        description: Canonical lower-case trait. Group and join on this.
+        data_tests:
+          - not_null
+
+      - name: trait
+        description: Display form, capitalised from trait_key.
