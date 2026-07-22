@@ -71,9 +71,16 @@ jobs:
         working-directory: dog_explorer_dbt
         run: dbt build --profiles-dir . --target "$DBT_TARGET"
 
+      # Documents the warehouse just built - it reads the database for real column
+      # types and row counts, and --static inlines them into a single openable file.
+      - name: dbt docs generate
+        working-directory: dog_explorer_dbt
+        run: dbt docs generate --profiles-dir . --target "$DBT_TARGET" --static
+
       # The built warehouse is deliberately not kept as an artifact. Nothing
       # consumes a hosted prod database, and it is reproducible from the raw
       # partitions on demand - what matters from this run is whether it passed.
+      # The docs generated above ride along inside target/.
       - name: Upload dbt run artifacts
         if: always()
         uses: actions/upload-artifact@v4
