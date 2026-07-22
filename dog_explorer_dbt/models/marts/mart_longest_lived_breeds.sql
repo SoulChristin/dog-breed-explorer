@@ -3,7 +3,7 @@
 select
     breed_name,
     breed_group,
-    size_class,
+    weight_class,
     life_span_avg_years,
     life_span_min_years,
     life_span_max_years,

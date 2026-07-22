@@ -1,35 +1,30 @@
--- Answers two of the case's four questions at once:
---   "How are breeds distributed across weight classes?"  -> breed_count
---   "Is there a relationship between size and life span?" -> avg_life_span
+-- Answers: "How are breeds distributed across weight classes?"
 --
--- One row per size class. Kept deliberately small: a mart that answers a
+-- One row per weight class. Kept deliberately small: a mart that answers a
 -- question should be readable in full on one screen, and this one is five rows.
---
--- Breeds with no parsed weight are excluded rather than bucketed into an
--- "Unknown" band - a size/lifespan comparison over breeds whose size is
--- unknown is not a comparison.
+
 
 with breeds as (
 
     select *
     from {{ ref('stg_breeds') }}
-    where size_class is not null
+    where weight_class is not null
 
 )
 
 select
-    size_class,
+    weight_class,
 
     -- Ordering column. Alphabetical would render Giant, Large, Medium, Small,
     -- Toy - which reads as meaningless on a chart axis. Every consumer of this
     -- model should order by this, not by the label.
-    case size_class
+    case weight_class
         when 'Toy'    then 1
         when 'Small'  then 2
         when 'Medium' then 3
         when 'Large'  then 4
         when 'Giant'  then 5
-    end                                             as size_rank,
+    end                                             as weight_rank,
 
     count(*)                                        as breed_count,
     round(100.0 * count(*) / sum(count(*)) over (), 1) as pct_of_breeds,
@@ -46,5 +41,5 @@ select
     round(max(life_span_max_years), 1)              as max_life_span_years
 
 from breeds
-group by size_class
-order by size_rank
+group by weight_class
+order by weight_rank

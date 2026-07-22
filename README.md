@@ -8,7 +8,19 @@
 
 > Tool choices and their trade-offs are argued in [DECISIONS.md](DECISIONS.md) — this file is only how to run it.
 
+## 📊 What the dashboard shows
+- Which breeds have the longest predicted life span? 
+        The top breeds who lived the longest live are the Denmark Feist, Koolie,Miniature Fox Terrier, Rat Terrier, Silken Windhound with around 15 yeras life span in average.
+
+- How are breeds distributed across weight classes?
+        Most dog breeds fall into the Medium and Large weight classes, with Medium being the most common. Small and Giant breeds are considerably less common, while Toy breeds represent the smallest group in the dataset.
+- Is there a relationship between size and life span?
+        The data suggests that larger (taller) breeds generally live shorter lives. The negative correlation (-0.503) indicates a moderate inverse relationship, although it is not a perfect trend.
+
 ---
+## Cost note:
+ At production scale, the main costs would come from compute, storage, and orchestration. Compute is typically the largest expense, covering the ingestion jobs, transformation workloads (e.g., dbt), and any scheduled processing. Storage costs include retaining raw data for auditing and processed datasets for analytics. Additional costs may come from orchestration, monitoring, logging, and data transfer between services. Running the pipeline daily is generally cost-effective when using right-sized resources and incremental processing, as only new or changed data is processed instead of rebuilding everything from scratch. The overall cost depends on data volume, processing frequency, and the chosen cloud provider.
+
 
 ## 📝 Project Overview
 
@@ -24,7 +36,7 @@
 - Every day's response is kept as its own partition, so the history is versioned and any past state can be rebuilt.
 - Free-text measurements are parsed into real numeric ranges, including the records that split a range by sex.
 - Multi-value attributes are split into a bridge table at one row per breed and trait, so they can be grouped, counted and joined.
-- Breeds are bucketed into five size bands derived from weight; breeds with no usable weight are left unclassified rather than defaulted into a band.
+- Breeds are bucketed into five classes derived from weight; breeds with no usable weight are left unclassified rather than defaulted into a band.
 - 22 automated tests run alongside the models — 20 schema tests covering keys, required fields, permitted values and referential integrity, plus 2 custom tests checking that no breed is lost or invented during curation and that no parsed range is inverted.
 - Tests run interleaved with the models, so bad data stops the models downstream of it from being built on top of it.
 - Continuous integration on every pull request, building and testing against a throwaway warehouse. It never calls the API — the committed raw data is the fixture, so checks are reproducible and cost no rate limit.
@@ -147,14 +159,8 @@ dbt test --profiles-dir . --target dev
 
 ---
 
-## 📊 What the dashboard shows
 
-Figures below are from the `prod` warehouse built off the `run_date=2026-07-21` partition (628 breeds); the daily refresh moves them slightly.
 
-**Bigger breeds live shorter lives, and the trend is monotonic.** Average life span falls from **13.34 years** for Toy breeds to **10.62** for Giant — a **2.7-year** drop — decreasing at every step in between (Toy 13.34 → Small 13.27 → Medium 12.98 → Large 12.18 → Giant 10.62). The mart carries `breeds_with_life_span` per band precisely so the average can be read against how many breeds it rests on; 40 of 628 breeds publish no life span at all.
 
-**The catalogue is concentrated in the middle.** Medium (5–25 kg midpoint) holds **249 breeds, 39.8%** of those with a parsed weight, and Large another **203 (32.4%)**. The tails are thin: **40 Toy (6.4%)** and **59 Giant (9.4%)**. Two breeds have no parsable weight and are excluded from this mart rather than bucketed into an "Unknown" band.
 
-**Longest-lived is a five-way tie at 15.0 years** — Denmark Feist, Koolie, Miniature Fox Terrier, Rat Terrier and Silken Windhound — followed by Pointer at 14.5. Ranking uses `RANK()` on the *midpoint* of the published range, not its maximum: ranking on the maximum would reward a breed with a wide, uncertain range over one with a tight, high one, and ties genuinely share a rank here.
 
-**Among family-friendly breeds, the top traits aren't the friendliness ones.** Of the 341 breeds carrying at least one defining trait, the most common temperaments are **Intelligent (293, 85.9%)**, **Loyal (195, 57.2%)** and **Alert (181, 53.1%)** — none of which were used to select the population. The defining traits themselves (Affectionate 47.8%, Friendly 47.2%, Playful 41.1%, Gentle 37.8%) rank high by construction, which is why the mart flags them with `is_defining_trait` and the dashboard offers a checkbox to hide them. "Family-friendly" has no flag in the source; it is a stated convention — an eight-trait list declared inline in `mart_temperament_summary.sql` — not an unauditable score.

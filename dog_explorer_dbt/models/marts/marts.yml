@@ -1,18 +1,18 @@
 version: 2
 
 models:
-  - name: mart_size_lifespan
+  - name: mart_weight_distribution
     description: >
-      One row per size class. Answers the weight-distribution and
-      size-vs-lifespan questions. Excludes breeds with no parsed weight.
+      One row per weight class. Answers the weight-distribution question.
+      Excludes breeds with no parsed weight.
     columns:
-      - name: size_class
+      - name: weight_class
         data_tests:
           - unique
           - not_null
           - accepted_values:
               values: ['Toy', 'Small', 'Medium', 'Large', 'Giant']
-      - name: size_rank
+      - name: weight_rank
         description: Sort key. Alphabetical ordering of the label is meaningless on an axis.
         data_tests:
           - unique
@@ -22,6 +22,42 @@ models:
           - not_null
       - name: avg_life_span_years
         description: Mean of per-breed life-span midpoints, over breeds_with_life_span rows.
+
+  - name: mart_height_lifespan_scatter
+    description: >
+      One row per breed - average height in cm against the life-span midpoint
+      in years.
+    columns:
+      - name: breed_id
+        description: Primary key. Enforces the one-row-per-breed grain a scatter needs.
+        data_tests:
+          - unique
+          - not_null
+      - name: breed_name
+        data_tests:
+          - not_null
+      - name: height_avg_cm
+        description: X axis. Midpoint of the parsed height range, unbanded.
+        data_tests:
+          - not_null
+      - name: life_span_avg_years
+        description: Y axis. Midpoint of the published life-span range.
+        data_tests:
+          - not_null
+
+  - name: mart_height_lifespan_correlation
+    description: >
+      One row. Pearson correlation between average breed height and life-span
+      midpoint, over the same breeds the scatter plots.
+    columns:
+      - name: n_breeds
+        description: Breeds with both a height and a life span.
+        data_tests:
+          - not_null
+      - name: pearson_r
+        description: Negative means taller breeds live shorter lives.
+        data_tests:
+          - not_null
 
   - name: mart_longest_lived_breeds
     description: >
@@ -37,23 +73,3 @@ models:
       - name: life_span_rank
         data_tests:
           - not_null
-
-  - name: mart_temperament_summary
-    description: >
-      Trait frequency among breeds meeting a stated family-friendly definition.
-      The definition is a project convention, declared in SQL in the model.
-    columns:
-      - name: trait
-        data_tests:
-          - not_null
-      - name: trait_key
-        data_tests:
-          - unique
-          - not_null
-      - name: breed_count
-        data_tests:
-          - not_null
-      - name: is_defining_trait
-        description: >
-          True where the trait is one of those used to select the population,
-          and therefore guaranteed to rank highly by construction.

@@ -72,9 +72,10 @@ parsed as (
         -- so breeds with no life_span get null rather than a fabricated value.
         (life_span_min_years + life_span_max_years) / 2.0 as life_span_avg_years,
 
-        -- Left as the cleaned comma-separated string: stg_breed_temperaments
-        -- splits it into one row per breed x trait, which is the shape any
-        -- trait-level question actually needs.
+        -- Left as the cleaned comma-separated string. Nothing downstream reads
+        -- it - the temperament question is out of scope - but it is carried
+        -- through so a trait-level model could be built on it without
+        -- re-parsing landing.
         temperament,
 
         origin,
@@ -114,23 +115,28 @@ parsed as (
 
 ),
 
--- Derived business columns the mart aggregates on:
---   * size_class      -> "How are breeds distributed across weight classes?"
---                        (mart groups by size_class, counts -> breed_count)
---   * life_span_avg_years    -> "Is there a relationship between size and life span?"
---                        (mart groups by size_class, avg(life_span_avg_years ) -> avg_life_span)
+-- Derived business columns the marts read:
+--   * weight_class    -> "How are breeds distributed across weight classes?"
+--   * height_avg_cm   -> "Is dog size related to predicted life span?"
+
 classified as (
 
     select
         *,
 
         -- Representative weight (kg): midpoint of the combined min-max range.
-        -- Exposed as its own column so the mart and size_class share one value.
+        -- Exposed as its own column so the mart and weight_class share one value.
         (weight_min_kg + weight_max_kg) / 2.0 as weight_avg_kg,
 
-        -- Size bucket. Cutoffs are kilograms, so this reads the METRIC midpoint,
-        -- not imperial. Null weight -> null class, guarded first so weightless
-        -- breeds are not silently defaulted into 'Giant'.
+        -- Representative height (cm): midpoint of the combined min-max range.
+        -- The continuous physical-size measure the correlation mart reads.
+        -- Null propagates, so breeds with no published height get null rather
+        -- than a fabricated value.
+        (height_metric_min + height_metric_max) / 2.0 as height_avg_cm,
+
+        -- Weight bucket. Cutoffs are kilograms, so this reads the METRIC
+        -- midpoint, not imperial. Null weight -> null class, guarded first so
+        -- weightless breeds are not silently defaulted into 'Giant'.
         case
             when weight_min_kg is null then null
             when weight_avg_kg <  5 then 'Toy'
@@ -138,7 +144,7 @@ classified as (
             when weight_avg_kg < 25 then 'Medium'
             when weight_avg_kg < 45 then 'Large'
             else 'Giant'
-        end as size_class
+        end as weight_class
 
     from parsed
 
