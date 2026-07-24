@@ -42,7 +42,7 @@
 - Continuous integration on every pull request, building and testing against a throwaway warehouse. It never calls the API — the committed raw data is the fixture, so checks are reproducible and cost no rate limit.
 - The same models run against a second target on merge to main, which is what proves the transformations are environment-agnostic.
 - A scheduled daily refresh fetches, stores and rebuilds on its own, committing only when the upstream data actually changed.
-- A local dashboard reads the finished tables directly, with the size bands, rankings and trait counts presented as the marts already computed them.
+- A local dashboard reads the finished tables directly, with the size bands, rankings presented as the marts already computed them.
 
 
 ### Tech Stack
