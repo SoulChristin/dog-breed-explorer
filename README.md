@@ -26,7 +26,7 @@
 
 ### Description
 
-[TheDogAPI](https://api.thedogapi.com/v1/breeds) publishes a breed catalogue that is easy to read but hard to analyse. Measurements arrive as free text rather than numbers, several attributes are packed many-to-one into a single field, and some records are incomplete — so nothing in the raw payload can be grouped, averaged or joined without being cleaned first. This project fetches that catalogue every day, keeps each day's response raw and immutable, and rebuilds a typed, tested warehouse on top of it through three layers: landing, staging and marts. Each of the four business questions gets its own mart table, shaped so the dashboard reads it directly with no logic in the presentation layer.
+[TheDogAPI](https://api.thedogapi.com/v1/breeds) publishes a breed catalogue that is easy to read but hard to analyse. Measurements arrive as free text rather than numbers, several attributes are packed many-to-one into a single field, and some records are incomplete — so nothing in the raw payload can be grouped, averaged or joined without being cleaned first. This project fetches that catalogue every day, keeps each day's response raw and immutable, and rebuilds a typed, tested warehouse on top of it through three layers: landing, staging and marts. Each of the three business questions gets its own mart table, shaped so the dashboard reads it directly with no logic in the presentation layer.
 
 ### Key Features
 
@@ -34,7 +34,7 @@
 - The raw layer is never modified. Each response is validated before it is stored, and what reaches disk is the original payload, byte for byte.
 - Incomplete or malformed responses are rejected instead of stored, and transient network and server failures are retried automatically.
 - Every day's response is kept as its own partition, so the history is versioned and any past state can be rebuilt.
-- Free-text measurements are parsed into real numeric ranges, including the records that split a range by sex.
+- Free-text measurements are parsed into real numeric ranges.
 - Multi-value attributes are split into a bridge table at one row per breed and trait, so they can be grouped, counted and joined.
 - Breeds are bucketed into five classes derived from weight; breeds with no usable weight are left unclassified rather than defaulted into a band.
 - 22 automated tests run alongside the models — 20 schema tests covering keys, required fields, permitted values and referential integrity, plus 2 custom tests checking that no breed is lost or invented during curation and that no parsed range is inverted.
