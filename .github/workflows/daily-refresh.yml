@@ -12,12 +12,12 @@ name: Daily refresh
 # itself forever - so the commit pushed below will NOT trigger deploy.yml.
 # Without the build step here, each night's data would land untested.
 
-on:
-  schedule:
-    # 02:00 UTC daily.
-    - cron: '0 2 * * *'
-  # Manual trigger, so a failed night can be re-run without waiting a day.
-  workflow_dispatch:
+#on:
+#  schedule:
+#    # 02:00 UTC daily.
+#    - cron: '0 2 * * *'
+#  # Manual trigger, so a failed night can be re-run without waiting a day.
+#  workflow_dispatch:
 
 # Prevent two runs writing the same day's partition at once.
 concurrency:
